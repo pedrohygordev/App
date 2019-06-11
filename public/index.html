@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+	<head> 
+		<meta charset="UTF-8" />
+		<title>App</title>
+		<link rel="stylesheet" href="css/style.css"/>	
+	</head>
+	<body>
+		<script src="js/phaser.min.js"></script>
+		<script type="text/javascript">
+		
+			var config = {
+				type: Phaser.AUTO,
+				width: 640,
+				height: 480,
+				scene: {
+					preload: preload,
+					create: create,
+					update: update
+				}
+			};
+
+			var point;
+			var snake;
+			var cursors;
+			var score = 0;
+			var scoreText;
+			var xPosit = 16;
+			var yPosit = 16;
+
+			var UP = 0;
+			var DOWN = 1;
+			var LEFT = 2;
+			var RIGHT = 3;
+
+			var game = new Phaser.Game(config);
+
+			function preload ()
+			{
+				this.load.image('background', 'assets/fundo.png');
+				this.load.image('square', 'assets/square.png');
+				this.load.image('point', 'assets/point.png');
+			}
+
+			function create ()
+			{
+				this.add.image(320, 240, 'background');
+				var Point = new Phaser.Class({
+
+					Extends: Phaser.GameObjects.Image,
+
+					initialize:
+
+					function Point (scene, x, y)
+					{
+						Phaser.GameObjects.Image.call(this, scene)
+
+						this.setTexture('point');
+						this.setPosition(x * xPosit, y * yPosit);
+						this.setOrigin(0);
+
+						this.tot = 0;
+
+						scene.children.add(this);
+					},
+
+					captured: function ()
+					{
+						this.tot++;
+					}
+
+				});
+
+				var Snake = new Phaser.Class({
+
+					initialize:
+
+					function Snake (scene, x, y)
+					{
+						this.headPosition = new Phaser.Geom.Point(x, y);
+
+						this.square = scene.add.group();
+
+						this.head = this.square.create(x * xPosit, y * yPosit, 'square');
+						this.head.setOrigin(0);
+
+						this.alive = true;
+
+						this.speed = 100;
+
+						this.moveTime = 0;
+
+						this.tail = new Phaser.Geom.Point(x, y);
+
+						this.heading = RIGHT;
+						this.direction = RIGHT;
+					},
+
+					update: function (time)
+					{
+						if (time >= this.moveTime)
+						{
+							return this.move(time);
+						}
+					},
+
+					faceLeft: function ()
+					{
+						if (this.direction === UP || this.direction === DOWN)
+						{
+							this.heading = LEFT;
+						}
+					},
+
+					faceRight: function ()
+					{
+						if (this.direction === UP || this.direction === DOWN)
+						{
+							this.heading = RIGHT;
+						}
+					},
+
+					faceUp: function ()
+					{
+						if (this.direction === LEFT || this.direction === RIGHT)
+						{
+							this.heading = UP;
+						}
+					},
+
+					faceDown: function ()
+					{
+						if (this.direction === LEFT || this.direction === RIGHT)
+						{
+							this.heading = DOWN;
+						}
+					},
+
+					move: function (time)
+					{
+						switch (this.heading)
+						{
+							case LEFT:
+								this.headPosition.x = Phaser.Math.Wrap(this.headPosition.x - 1, 0, 40);
+								break;
+
+							case RIGHT:
+								this.headPosition.x = Phaser.Math.Wrap(this.headPosition.x + 1, 0, 40);
+								break;
+
+							case UP:
+								this.headPosition.y = Phaser.Math.Wrap(this.headPosition.y - 1, 0, 30);
+								break;
+
+							case DOWN:
+								this.headPosition.y = Phaser.Math.Wrap(this.headPosition.y + 1, 0, 30);
+								break;
+						}
+
+						this.direction = this.heading;
+
+						Phaser.Actions.ShiftPosition(this.square.getChildren(), this.headPosition.x * xPosit, this.headPosition.y * yPosit, 1, this.tail);
+
+						var defeat = Phaser.Actions.GetFirst(this.square.getChildren(), { x: this.head.x, y: this.head.y }, 1);
+
+						if (defeat)
+						{
+							alert('Game Over');
+							location.reload();
+
+							this.alive = false;
+
+							return false;
+						}
+						else
+						{
+							this.moveTime = time + this.speed;
+							return true;
+						}
+					},
+
+					evolveLevel: function ()
+					{
+						var newPart = this.square.create(this.tail.x, this.tail.y, 'square');
+
+						newPart.setOrigin(0);
+					},
+
+					collideWithPoint: function (point)
+					{
+						if (this.head.x === point.x && this.head.y === point.y)
+						{
+							this.evolveLevel();
+
+							point.captured();
+							
+							score += 1;
+							scoreText.setText('Score: ' + score);
+
+							if (this.speed > 20 && point.tot % 5 === 0)
+							{
+								this.speed -= 10;
+							}
+
+							return true;
+						}
+						else
+						{
+							return false;
+						}
+					},
+
+					updateGrid: function (grid)
+					{
+						this.square.children.each(function (segment) {
+
+							var bx = segment.x / xPosit;
+							var by = segment.y / yPosit;
+
+							grid[by][bx] = false;
+
+						});
+
+						return grid;
+					}
+
+				});
+
+				point = new Point(this, 30, 20);
+				snake = new Snake(this, 8, 8);
+				scoreText = this.add.text(500, 16, 'Score: 0', {fontSize: '16px', fill: '#000'});
+				cursors = this.input.keyboard.createCursorKeys();
+			}
+
+			function update (time, delta)
+			{
+				if (snake.alive === false)
+				{
+					return;
+				}
+
+				if (cursors.left.isDown)
+				{
+					snake.faceLeft();
+				}
+				else if (cursors.right.isDown)
+				{
+					snake.faceRight();
+				}
+				else if (cursors.up.isDown)
+				{
+					snake.faceUp();
+				}
+				else if (cursors.down.isDown)
+				{
+					snake.faceDown();
+				}
+
+				if (snake.update(time))
+				{
+					if (snake.collideWithPoint(point))
+					{
+						repositionPoint();
+					}
+				}
+			}
+
+			function repositionPoint ()
+			{
+				var testGrid = [];
+
+				for (var y = 0; y < 30; y++)
+				{
+					testGrid[y] = [];
+
+					for (var x = 0; x < 40; x++)
+					{
+						testGrid[y][x] = true;
+					}
+				}
+
+				snake.updateGrid(testGrid);
+
+				var validLocations = [];
+
+				for (var y = 0; y < 30; y++)
+				{
+					for (var x = 0; x < 40; x++)
+					{
+						if (testGrid[y][x] === true)
+						{
+							validLocations.push({ x: x, y: y });
+						}
+					}
+				}
+
+				if (validLocations.length > 0)
+				{
+					var pos = Phaser.Math.RND.pick(validLocations);
+
+					point.setPosition(pos.x * xPosit, pos.y * yPosit);
+
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+
+		</script>
+</body>
+</html>
